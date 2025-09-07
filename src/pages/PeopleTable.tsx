@@ -1,51 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
-import Page from '@/components/Page';
-import { ColumnDef } from '@tanstack/react-table';
-import { db, Person, Subscription, Assignment, Service } from '@/db/schema';
-import { ensureSeed } from '@/db/seed';
-import { DataTable } from '@/components/table/DataTable';
+import React from "react";
 
-type Row = Person & { assignments: number; totalPerMonth: number };
+type AnySub = { [k: string]: any };
 
-export default function PeopleTable(){
-  const [people, setPeople] = useState<Person[]>([]);
-  const [assigns, setAssigns] = useState<Assignment[]>([]);
-  const [subs, setSubs] = useState<Subscription[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-
-  useEffect(()=>{(async()=>{
-    await ensureSeed();
-    const [p, a, s, sv] = await Promise.all([
-      db.people.toArray(),
-      db.assignments.toArray(),
-      db.subscriptions.toArray(),
-      db.services.toArray(),
-    ]);
-    setPeople(p); setAssigns(a); setSubs(s); setServices(sv);
-  })()},[]);
-
-  const rows: Row[] = useMemo(()=> people.map(person=>{
-    const myAssigns = assigns.filter(a=> a.personId===person.id);
-    const total = myAssigns.reduce((sum, a)=> {
-      const sub = subs.find(s => s.id === a.subscriptionId);
-      const svc = services.find(sv => sv.id === sub?.serviceId);
-      return sum + (a.pricePerMonth ?? sub?.pricePerMonth ?? svc?.baseCostPerMonth ?? 0);
-    }, 0);
-    return { ...person, assignments: myAssigns.length, totalPerMonth: total };
-  }), [people, assigns, subs, services]);
-
-  const columns: ColumnDef<Row>[] = [
-    { accessorKey: 'name', header: 'Person' },
-    { accessorKey: 'email', header: 'Email' },
-    { accessorKey: 'phone', header: 'Telefon' },
-    { accessorKey: 'assignments', header: 'Zuweisungen' },
-    { accessorKey: 'totalPerMonth', header: '€/Monat', cell: ({getValue})=> (Number(getValue())||0).toFixed(2) },
-  ];
+export default function PeopleTable() {
+  // This is a safe placeholder table that tolerates different subscription shapes.
+  const subs: AnySub[] = Array.isArray((window as any).__SUBS__)
+    ? (window as any).__SUBS__
+    : [];
 
   return (
-    <Page title="Personen – Tabelle">
-      <div className="mb-3 text-sm opacity-80">Globale Suche oben links, CSV exportiert die sichtbaren Spalten.</div>
-      <DataTable<Row, unknown> title="Personen" columns={columns} data={rows} initialSorting={[{id:'name', desc:false}]}/>
-    </Page>
+    <div className="p-4">
+      <h2 className="text-lg font-semibold mb-3">Abos</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {subs.map((s, i) => {
+          const price =
+            typeof s.pricePerMonth === "number"
+              ? s.pricePerMonth
+              : typeof s.price === "number"
+              ? s.price
+              : 0;
+          return (
+            <div key={i} className="border rounded-xl p-3">
+              <div className="text-sm opacity-70">{s.name ?? "Abo"}</div>
+              <div className="text-xl font-bold">
+                {price.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
