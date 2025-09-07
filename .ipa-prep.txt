@@ -1,0 +1,1 @@
+This project is prepared for Capacitor iOS build. Follow ios-build-README.md.

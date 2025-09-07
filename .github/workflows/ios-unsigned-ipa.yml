@@ -1,0 +1,41 @@
+
+name: Build iOS unsigned IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci
+      - name: Build web
+        run: npm run build
+      - name: Setup Capacitor iOS
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods -N
+          cd ios && pod install
+      - name: Xcode build (archive unsigned)
+        run: |
+          cd ios
+          xcodebuild -workspace App/App.xcworkspace -scheme App -configuration Release -archivePath $PWD/build/GiannicorpAdmin.xcarchive CODE_SIGNING_ALLOWED=NO archive
+      - name: Create unsigned IPA
+        run: |
+          APP_PATH=$(find ios/build/GiannicorpAdmin.xcarchive/Products/Applications -name "*.app" -maxdepth 1 -print -quit)
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry GiannicorpAdmin-unsigned.ipa Payload
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GiannicorpAdmin-unsigned
+          path: GiannicorpAdmin-unsigned.ipa
