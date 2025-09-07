@@ -29,10 +29,7 @@ export default function PeopleTable(){
     const total = myAssigns.reduce((sum, a)=> {
       const sub = subs.find(s => s.id === a.subscriptionId);
       const svc = services.find(sv => sv.id === sub?.serviceId);
-      const price =
-        (a as any).pricePerMonth ??           // Assignment-Override
-        (svc?.baseCostPerMonth ?? 0);         // Fallback: Service-Basis
-      return sum + (Number(price) || 0);
+      return sum + (a.pricePerMonth ?? sub?.pricePerMonth ?? svc?.baseCostPerMonth ?? 0);
     }, 0);
     return { ...person, assignments: myAssigns.length, totalPerMonth: total };
   }), [people, assigns, subs, services]);

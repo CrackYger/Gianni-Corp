@@ -5,15 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview --port 5173",
     "pwa": "vite build",
     "android": "npx cap run android",
     "ios": "npx cap open ios",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "npx cap sync",
-    "cap:update": "npx cap update",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "cap:update": "npx cap update"
   },
   "dependencies": {
     "dexie": "^4.0.8",
