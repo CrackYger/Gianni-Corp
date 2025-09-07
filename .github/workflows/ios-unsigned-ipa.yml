@@ -1,17 +1,7 @@
-name: iOS unsigned IPA (Capacitor) — hardened
+name: iOS unsigned IPA (Capacitor) — perm fix
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.*'
-      - 'capacitor.config.*'
-      - 'ios/**'
-      - '.github/workflows/ios-unsigned-ipa.yml'
 
 jobs:
   build-unsigned-ipa:
@@ -21,19 +11,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify node_modules is NOT in repo
+        run: |
+          if git ls-files | grep -q '^node_modules/'; then
+            echo "::error::node_modules is tracked in the repo. Remove it with 'git rm -rf --cached node_modules' and push again."
+            exit 1
+          else
+            echo "OK: node_modules is not tracked."
+          fi
+
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Show environment
-        run: |
-          node -v
-          npm -v
-          sw_vers
-
-      # Prefer install with peer-deps tolerant mode; fall back to plain install if needed
       - name: Install deps
         run: |
           set -euxo pipefail
@@ -43,7 +35,19 @@ jobs:
             npm install --legacy-peer-deps
           fi
 
-      - name: Build web (Vite)
+      - name: Fix exec perms for node_modules/.bin (tsc, vite, etc.)
+        run: |
+          if [ -d node_modules/.bin ]; then
+            chmod +x node_modules/.bin/* || true
+          fi
+
+      - name: Show tsc path & perms
+        run: |
+          which tsc || true
+          ls -l node_modules/.bin/tsc || true
+          node -p "require.resolve('typescript/bin/tsc')" || true
+
+      - name: Build web (use package script)
         run: npm run build
 
       - name: Add & sync Capacitor iOS
@@ -78,16 +82,3 @@ jobs:
           path: |
             ios/App/Giannicorp-unsigned.ipa
             ios/App/build/App.xcarchive
-
-      # If something fails before, try to print npm logs for easier debugging
-      - name: Print npm debug logs (if any)
-        if: failure()
-        run: |
-          LOG_DIR="$HOME/.npm/_logs"
-          if [ -d "$LOG_DIR" ]; then
-            echo "=== npm logs ==="
-            ls -l "$LOG_DIR" || true
-            cat "$LOG_DIR"/*-debug-*.log || true
-          else
-            echo "No npm debug logs found."
-          fi
