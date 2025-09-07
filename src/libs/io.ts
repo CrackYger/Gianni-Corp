@@ -3,18 +3,39 @@
  * Includes legacy-compatible exports: backupJSON / restoreJSON.
  */
 
+
 export function downloadJSON(filename: string, data: unknown) {
   const name = filename.endsWith(".json") ? filename : `${filename}.json`;
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const json = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const file = new File([blob], name, { type: "application/json" });
+
+  // Try Web Share Level 2 (iOS 16+ supports files in share sheet)
+  const nav: any = navigator;
+  if (nav?.canShare && nav.canShare({ files: [file] }) && nav.share) {
+    nav.share({ files: [file], title: name, text: "Giannicorp Backup" }).catch(()=>{});
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
+  // iOS/PWA can ignore download attr; open in a new tab as fallback so user can "Teilen"/"In Dateien sichern"
+  a.target = "_blank";
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+
+  // Additional safety: open window if anchor click is blocked
+  try { window.open(url, "_blank"); } catch {}
+
+  // Cleanup
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 2000);
 }
+
 
 export function downloadCSV(filename: string, rows: Array<Record<string, any>>) {
   const name = filename.endsWith(".csv") ? filename : `${filename}.csv`;

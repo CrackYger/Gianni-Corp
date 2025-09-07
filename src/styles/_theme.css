@@ -1,0 +1,81 @@
+
+/* _theme.css — makes the "Darstellung" settings actually change the UI.
+   It responds to: [data-theme="light"|"dark"], [data-density], [data-reduce-motion]
+   and the --accent CSS variable (set from Settings).
+*/
+
+/* ---------- Variables ---------- */
+:root{
+  --accent: #4DA3FF;
+
+  /* Dark theme (default) */
+  --bg: #0B0E14;
+  --ink: #E6EAF2;
+  --muted: rgba(230,234,242,0.7);
+  --surface: rgba(255,255,255,0.06);
+  --surface-strong: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.12);
+  --shadow-elev: 0 20px 40px rgba(0,0,0,0.35);
+}
+
+/* Light overrides */
+:root[data-theme="light"]{
+  --bg: #F7F9FC;
+  --ink: #0B0E14;
+  --muted: rgba(11,14,20,0.7);
+  --surface: rgba(0,0,0,0.04);
+  --surface-strong: rgba(0,0,0,0.08);
+  --border: rgba(0,0,0,0.12);
+  --shadow-elev: 0 16px 30px rgba(0,0,0,0.15);
+}
+
+/* Explicit dark in case you want to force it */
+:root[data-theme="dark"]{
+  --bg: #0B0E14;
+  --ink: #E6EAF2;
+  --muted: rgba(230,234,242,0.7);
+  --surface: rgba(255,255,255,0.06);
+  --surface-strong: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.12);
+  --shadow-elev: 0 20px 40px rgba(0,0,0,0.35);
+}
+
+/* ---------- Theme application ---------- */
+html, body { background: var(--bg); color: var(--ink); }
+body { color-scheme: dark; }
+/* If user selected light, Settings sets color-scheme accordingly; else keep dark default. */
+
+/* Background glow uses accent */
+body::before{
+  background: radial-gradient(800px 400px at 20% 10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%) !important;
+}
+
+/* Core surfaces */
+.glass{ background: var(--surface) !important; border-color: var(--border) !important; backdrop-filter: blur(14px); }
+.card{ background: var(--surface) !important; border-color: var(--border) !important; box-shadow: var(--shadow-elev); }
+
+/* Controls */
+.btn{ border-color: var(--border) !important; }
+.btn-primary, .seg > button[aria-pressed="true"]{ background: var(--accent) !important; color: white !important; }
+.chip-active{ background: var(--accent) !important; color: white !important; }
+.input{ background: transparent !important; border-color: var(--border) !important; color: var(--ink) !important; }
+.progress{ background: var(--surface-strong) !important; }
+.progress > span{ background: var(--accent) !important; }
+
+/* Active nav item */
+.sidebar-link.active{ background: var(--surface-strong) !important; }
+
+/* ---------- Density ---------- */
+:root[data-density="compact"] .card{ padding: 14px !important; border-radius: 16px !important; }
+:root[data-density="compact"] .btn{ padding: .4rem .7rem !important; border-radius: .75rem !important; }
+:root[data-density="compact"] .seg > button{ padding: .35rem .6rem !important; }
+:root[data-density="compact"] .input{ height: 36px !important; padding: .4rem .6rem !important; }
+:root[data-density="compact"] .chip{ padding: .2rem .5rem !important; }
+
+/* ---------- Reduce motion ---------- */
+:root[data-reduce-motion="1"] *{
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+:root[data-reduce-motion="1"] .glass{ backdrop-filter: none !important; }

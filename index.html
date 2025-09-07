@@ -1,19 +1,71 @@
-
 <!doctype html>
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0E14" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="manifest.webmanifest">
-    <link rel="icon" href="favicon.svg">
-      <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
-
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/icons/icon-180.png">
     <title>Giannicorp Admin</title>
+    <style>
+      :root{ color-scheme: dark; }
+      *{ box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; background: #0B0E14; }
+      body { overscroll-behavior: none; }
+      #splash { position: fixed; inset:0; display:grid; place-items:center; z-index:9999;
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(10,132,255,0.18), transparent 60%), #0B0E14; }
+      .splash-card{ width:280px; max-width:86vw; border-radius:28px; padding:28px;
+        background: rgba(255,255,255,0.06); backdrop-filter: blur(14px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.10);
+        text-align:center; color:#E6EAF2; }
+      .brand{ font-size:22px; font-weight:700; letter-spacing:.2px; }
+      .brand-accent{ color:#4DA3FF; }
+      .tagline{ opacity:.8; font-size:12px; margin-top:6px; }
+      .spinner{ width:28px; height:28px; margin:16px auto 6px; border-radius:50%;
+        border:3px solid rgba(255,255,255,0.25); border-top-color: rgba(255,255,255,0.95);
+        animation: spin 900ms linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .fade-out{ animation: splashfade .35s ease forwards; }
+      @keyframes splashfade { to { opacity:0; visibility:hidden; } }
+    </style>
   </head>
   <body>
+    <div id="splash" role="img" aria-label="Giannicorp Admin lädt">
+      <div class="splash-card">
+        <div class="brand">Giannicorp <span class="brand-accent">Admin</span></div>
+        <div class="tagline">Lädt…</div>
+        <div class="spinner" aria-hidden="true"></div>
+      </div>
+    </div>
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+
+    <!-- Robust splash fallback: remove after app ready OR hard-timeout -->
+    <script>
+    (function(){
+      var splash = document.getElementById('splash');
+      function removeSplash(){
+        if (!splash) return;
+        try {
+          splash.classList.add('fade-out');
+          splash.addEventListener('animationend', function(){ splash && splash.remove(); }, { once: true });
+          // hard kill as extra safety
+          setTimeout(function(){ splash && splash.remove(); }, 1200);
+        } catch(e){ try{ splash.remove(); }catch(_){} }
+      }
+      // If app signals ready, remove immediately
+      window.addEventListener('app:ready', function(){
+        clearTimeout(tt);
+        removeSplash();
+      }, { once: true });
+      // Fallback timeout (e.g., build/runtime error): remove after 6s
+      var tt = setTimeout(removeSplash, 6000);
+      // Also auto-remove on full page load after 8s as last resort
+      window.addEventListener('load', function(){ setTimeout(removeSplash, 8000); }, { once: true });
+    })();
+    </script>
+
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

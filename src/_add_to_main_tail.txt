@@ -1,0 +1,9 @@
+
+// --- Splash removal: signal app ready and remove overlay ---
+try { window.dispatchEvent(new Event('app:ready')); } catch {}
+const __splash = document.getElementById('splash');
+if (__splash) {
+  __splash.classList.add('fade-out');
+  __splash.addEventListener('animationend', () => __splash.remove(), { once: true });
+  setTimeout(() => __splash.remove(), 1200);
+}

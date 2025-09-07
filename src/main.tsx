@@ -4,6 +4,7 @@ import { createBrowserRouter, createHashRouter, RouterProvider } from 'react-rou
 import { Capacitor } from '@capacitor/core';
 import App from './App';
 import './styles/index.css';
+import './styles/_theme.css';
 
 import Dashboard from './pages/Dashboard';
 import Services from './pages/Services';
