@@ -101,11 +101,16 @@ export default function Dashboard(){
   },[]);
 
   const deltaNet = useMemo(()=>{
-    const n = series.net;
-    if (n.length<2) return 0;
-    const last = n[n.length-1], prev = n[n.length-2];
+    const n = series.net || [];
+    const last = n.length > 0 ? n[n.length - 1] : 0;
+    const prev = n.length > 1 ? n[n.length - 2] : 0;
     return +(last - prev).toFixed(2);
   },[series.net]);
+
+  // Helper for inline usage (no .at)
+  const netLast = series.net.length > 0 ? series.net[series.net.length - 1] : 0;
+  const netPrev = series.net.length > 1 ? series.net[series.net.length - 2] : 0;
+  const netDeltaInline = netLast - netPrev;
 
   return (
     <Page title="Dashboard">
@@ -115,7 +120,7 @@ export default function Dashboard(){
         <div className="card"><div className="text-sm opacity-70">Freie Slots</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.freeSlots ?? 0}</div></div>
         <div className="card flex items-center justify-between"><div><div className="text-sm opacity-70">Auslastung</div><div className="text-3xl font-semibold mt-1">{(k.utilization??0)}%</div></div><Donut value={k.utilization??0} size={80} stroke={10} label="Auslastung"/></div>
         <div className="card"><div className="text-sm opacity-70">MRR</div><div className="text-3xl font-semibold mt-1">{Euro(k.mrr||0)}</div></div>
-        <div className="card"><div className="text-sm opacity-70">Netto (Monat)</div><div className="text-3xl font-semibold mt-1">{Euro(k.netMonth||0)}</div><div className={"text-xs mt-1 " + (( (series.net.at(-1)||0)-(series.net.at(-2)||0) )>=0 ? "text-emerald-400" : "text-red-400")}>{((series.net.at(-1)||0)-(series.net.at(-2)||0))>=0 ? "▲" : "▼"} {Euro(Math.abs(((series.net.at(-1)||0)-(series.net.at(-2)||0))))} vs. Vormonat</div></div>
+        <div className="card"><div className="text-sm opacity-70">Netto (Monat)</div><div className="text-3xl font-semibold mt-1">{Euro(k.netMonth||0)}</div><div className={"text-xs mt-1 " + (( netDeltaInline )>=0 ? "text-emerald-400" : "text-red-400")}>{( netDeltaInline )>=0 ? "▲" : "▼"} {Euro(Math.abs( netDeltaInline ))} vs. Vormonat</div></div>
         <div className="card"><div className="text-sm opacity-70">Offene Tasks</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.tasksOpen ?? 0}</div></div>
 
         {/* New project KPI cards */}
