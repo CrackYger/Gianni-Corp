@@ -12,7 +12,8 @@
     "ios": "npx cap open ios",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "npx cap sync",
-    "cap:update": "npx cap update"
+    "cap:update": "npx cap update",
+    "build:ios": "npm run build && npx cap sync ios"
   },
   "dependencies": {
     "dexie": "^4.0.8",
@@ -38,6 +39,7 @@
     "vite": "^5.4.2",
     "@capacitor/cli": "^6.1.2",
     "@capacitor/core": "^6.1.2",
-    "vite-plugin-pwa": "^0.20.0"
+    "vite-plugin-pwa": "^0.20.0",
+    "@capacitor/ios": "^6.1.2"
   }
 }

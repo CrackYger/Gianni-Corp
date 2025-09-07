@@ -1,41 +1,69 @@
+name: iOS • Build unsigned .ipa (Capacitor + Vite)
 
-name: Build iOS unsigned IPA
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
+
 jobs:
   build-ios:
     runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install deps
-        run: npm ci
-      - name: Build web
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --loglevel=error
+
+      - name: Build web (Vite)
         run: npm run build
-      - name: Setup Capacitor iOS
+
+      - name: Ensure Capacitor iOS platform
         run: |
-          npx cap add ios || true
-          npx cap sync ios
-      - name: Install CocoaPods
+          npx cap doctor
+          if [ ! -d ios ]; then
+            npx cap add ios --skip-confirmation
+          fi
+
+      - name: Sync web assets to iOS
+        run: npx cap copy ios
+
+      - name: CocoaPods install
         run: |
-          sudo gem install cocoapods -N
-          cd ios && pod install
-      - name: Xcode build (archive unsigned)
+          sudo gem install cocoapods -N || true
+          cd ios/App
+          pod repo update || true
+          pod install
+
+      - name: Xcode archive (unsigned)
         run: |
+          set -e
           cd ios
-          xcodebuild -workspace App/App.xcworkspace -scheme App -configuration Release -archivePath $PWD/build/GiannicorpAdmin.xcarchive CODE_SIGNING_ALLOWED=NO archive
-      - name: Create unsigned IPA
+          WORKSPACE="App/App.xcworkspace"
+          SCHEME="App"
+          ARCHIVE_PATH="$PWD/build/GiannicorpAdmin.xcarchive"
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -destination 'generic/platform=iOS' -archivePath "$ARCHIVE_PATH" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+
+      - name: Package .ipa
         run: |
+          set -e
           APP_PATH=$(find ios/build/GiannicorpAdmin.xcarchive/Products/Applications -name "*.app" -maxdepth 1 -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ .app not found in archive"; exit 1; fi
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry GiannicorpAdmin-unsigned.ipa Payload
+          /usr/bin/zip -qry GiannicorpAdmin-unsigned.ipa Payload
+          rm -rf Payload
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiannicorpAdmin-unsigned
+          name: GiannicorpAdmin-unsigned-ipa
           path: GiannicorpAdmin-unsigned.ipa

@@ -1,7 +1,7 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, createHashRouter, RouterProvider } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import App from './App';
 import './styles/index.css';
 
@@ -32,7 +32,11 @@ function AppNotFound(){
   );
 }
 
-const router = createBrowserRouter([
+// Detect native (Capacitor) and use hash routing there
+const isNative = (Capacitor as any)?.isNativePlatform?.() ?? (['ios','android'].includes(Capacitor.getPlatform()));
+const makeRouter = (useHash: boolean) => (useHash ? createHashRouter : createBrowserRouter);
+
+const router = makeRouter(!!isNative)([
   { path: '/', element: <App/>, errorElement: <AppError/>, children: [
     { index: true, element: <Dashboard/> },
     { path: 'abos', element: <Services/> },
