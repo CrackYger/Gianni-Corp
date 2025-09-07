@@ -59,7 +59,7 @@ export default function Projects(){
                 </div>
                 <div>
                   <div className="opacity-60">Owner</div>
-                  <div className="font-medium">{p.owner ?? '—'}</div>
+                  <div className="font-medium">{p.owner ?? (row?.createdBy ?? row?.name) ?? '—'}</div>
                 </div>
               </div>
             </div>

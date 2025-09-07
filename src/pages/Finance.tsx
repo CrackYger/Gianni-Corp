@@ -48,7 +48,42 @@ export default function Finance(){
   }, [expenses, month, topExp, services]);
 
 
-  const [month, setMonth] = useState(()=> new Date().toISOString().slice(0,7)); // yyyy-mm
+  const [month, setMonth] = useState(()=> new Date().toISOString().slice(0,7));// === Charts Data (unterhalb von month!) ===
+const monthsBack = 12;
+const monthKeys = useMemo(()=>{
+  const arr:string[] = [];
+  const d = new Date(); d.setDate(1);
+  for(let i=0;i<monthsBack;i++){
+    const y = d.getFullYear(), m = (d.getMonth()+1).toString().padStart(2,'0');
+    arr.unshift(`${y}-${m}`); d.setMonth(d.getMonth()-1);
+  }
+  return arr;
+}, []);
+
+const monthlySeries = useMemo(()=>{
+  const byMonth: Record<string,{income:number;expense:number;net:number}> =
+    Object.fromEntries(monthKeys.map(k=> [k,{ income:0, expense:0, net:0 }]));
+  for(const inc of incomes){ const k = inc.date.slice(0,7); if(byMonth[k]) byMonth[k].income += inc.amount||0; }
+  for(const exp of expenses){ const k = exp.date.slice(0,7); if(byMonth[k]) byMonth[k].expense += exp.amount||0; }
+  Object.keys(byMonth).forEach(k=> byMonth[k].net = byMonth[k].income - byMonth[k].expense);
+  return monthKeys.map(k=> ({ month:k, ...byMonth[k] }));
+}, [incomes, expenses, monthKeys]);
+
+const [topExp, setTopExp] = useState(8);
+const expenseByService = useMemo(()=>{
+  const map = new Map<string, number>();
+  const monthPrefix = month + '-';
+  const svcById = new Map<string, Service>(services.map(s=> [s.id, s]));
+  for(const exp of expenses){
+    if(!exp.date.startsWith(monthPrefix)) continue;
+    const name = (exp.serviceId && svcById.get(exp.serviceId)?.name) || 'Unbekannt';
+    map.set(name, (map.get(name)||0) + (exp.amount||0));
+  }
+  return Array.from(map.entries())
+    .map(([name, amount])=> ({ name, amount }))
+    .sort((a,b)=> b.amount - a.amount)
+    .slice(0, topExp);
+}, [expenses, month, topExp, services]); // yyyy-mm
 
   useEffect(()=>{ (async ()=>{ try {
     await ensureSeed();

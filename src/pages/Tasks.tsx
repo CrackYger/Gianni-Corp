@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Page from '@/components/Page';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db, Task } from '@/db/schema';
 import { ensureSeed } from '@/db/seed';
 
@@ -60,32 +61,32 @@ export default function Tasks(){
             {COLUMNS.slice(0,3).map(c=> (
               <button key={c.key} aria-pressed={status===c.key} onClick={()=>setStatus(c.key as Status)}>{c.label}</button>
             ))}
-          </div>
+          </motion.div>
           <button className="btn btn-primary" onClick={addTask}>Hinzufügen</button>
-        </div>
+        </motion.div>
       }
     >
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {COLUMNS.map(col=> (
           <div key={col.key} className="card">
-            <div className="text-xs opacity-70 mb-2">{col.label}</div>
+            <div className="text-xs opacity-70 mb-2">{col.label}</motion.div>
             <div className="grid gap-2">
               {grouped[col.key].map(t=> (
-                <div key={t.id} layout initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="bg-white/5 rounded-xl p-3">
-                  <div className="font-medium">{t.title}</div>
-                  {t.description && <div className="text-xs opacity-70 mt-1">{t.description}</div>}
+                <motion.div key={t.id} layout initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="bg-white/5 rounded-xl p-3">
+                  <div className="font-medium">{t.title}</motion.div>
+                  {t.description && <div className="text-xs opacity-70 mt-1">{t.description}</motion.div>}
                   <div className="flex gap-2 mt-2">
                     {col.key!=='open' && <button className="btn btn-ghost px-2 py-1" onClick={()=>move(t.id, prev(col.key))}>Zurück</button>}
                     {col.key!=='done' && <button className="btn btn-primary px-2 py-1" onClick={()=>move(t.id, next(col.key))}>Weiter</button>}
                     <button className="btn btn-danger px-2 py-1 ml-auto" onClick={()=>del(t.id)}>Del</button>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               ))}
-              {grouped[col.key].length===0 && <div className="text-xs opacity-50">—</div>}
-            </div>
-          </div>
+              {grouped[col.key].length===0 && <div className="text-xs opacity-50">—</motion.div>}
+            </motion.div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </Page>
   );
 }
