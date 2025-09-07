@@ -1,41 +1,68 @@
+name: iOS unsigned IPA (Capacitor) — lockfile fix
 
-name: Build iOS unsigned IPA
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
+
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  build-unsigned-ipa:
+    runs-on: macos-14
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Install deps
-        run: npm ci
-      - name: Build web
-        run: npm run build
-      - name: Setup Capacitor iOS
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Ensure repo is clean (no node_modules tracked)
         run: |
-          npx cap add ios || true
+          if git ls-files | grep -q '^node_modules/'; then
+            echo "::error::node_modules is tracked in the repo. Remove with 'git rm -rf --cached node_modules'."
+            exit 1
+          fi
+
+      # Lockfile mismatch safe: delete lockfile so npm reconstructs tree
+      - name: Remove lockfile (mismatch-safe)
+        run: rm -f package-lock.json
+
+      - name: Install deps (no-audit, legacy peer deps)
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Build web (vite only)
+        run: npm run build
+
+      - name: Add & sync Capacitor iOS
+        run: |
+          npm i -D @capacitor/cli @capacitor/core
           npx cap sync ios
+
       - name: Install CocoaPods
         run: |
-          sudo gem install cocoapods -N
-          cd ios && pod install
+          sudo gem install cocoapods --no-document
+          cd ios/App && pod install
+
       - name: Xcode build (archive unsigned)
         run: |
-          cd ios
-          xcodebuild -workspace App/App.xcworkspace -scheme App -configuration Release -archivePath $PWD/build/GiannicorpAdmin.xcarchive CODE_SIGNING_ALLOWED=NO archive
+          set -euo pipefail
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace             -scheme App             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY=""             clean archive -archivePath "$PWD/build/App.xcarchive"
+
       - name: Create unsigned IPA
         run: |
-          APP_PATH=$(find ios/build/GiannicorpAdmin.xcarchive/Products/Applications -name "*.app" -maxdepth 1 -print -quit)
-          mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-          zip -qry GiannicorpAdmin-unsigned.ipa Payload
-      - name: Upload artifact
+          set -euo pipefail
+          cd ios/App
+          APP_PATH="build/App.xcarchive/Products/Applications/App.app"
+          mkdir -p unsigned_payload/Payload
+          cp -R "$APP_PATH" unsigned_payload/Payload/App.app
+          (cd unsigned_payload && zip -r ../Giannicorp-unsigned.ipa Payload)
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: GiannicorpAdmin-unsigned
-          path: GiannicorpAdmin-unsigned.ipa
+          name: giannicorp-unsigned-ipa
+          path: |
+            ios/App/Giannicorp-unsigned.ipa
+            ios/App/build/App.xcarchive
