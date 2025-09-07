@@ -40,3 +40,4 @@ android/local.properties
 *.pem
 *.p12
 *.mobileprovision
+"node_modules/" 
