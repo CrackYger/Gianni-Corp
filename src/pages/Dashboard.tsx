@@ -1,171 +1,245 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Page from '@/components/Page';
-import { db } from '@/db/schema';
-import Sparkline from '@/components/viz/Sparkline';
-import MiniBar from '@/components/viz/MiniBar';
-import Donut from '@/components/viz/Donut';
+import { db, Service, Subscription, Assignment, Income, Expense } from '@/db/schema';
+import { ensureSeed } from '@/db/seed';
 
-type Series = { labels: string[]; income: number[]; expense: number[]; net: number[] };
-
-function monthKey(d: Date){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-function lastNMonths(n: number){
-  const arr: string[] = [];
-  const now = new Date();
-  for (let i=n-1; i>=0; i--){
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    arr.push(monthKey(d));
-  }
-  return arr;
-}
-
-async function buildSeries(n=6): Promise<Series>{
-  const labels = lastNMonths(n);
-  const incomes = await db.incomes.toArray().catch(()=>[] as any[]);
-  const expenses = await db.expenses.toArray().catch(()=>[] as any[]);
-  const byMonth = (xs:any[], sign=1) => {
-    const map = new Map(labels.map(l=>[l,0]));
-    for (const x of xs){
-      if (!x?.date) continue;
-      const key = x.date.slice(0,7);
-      if (map.has(key)) map.set(key, (map.get(key) || 0) + (x.amount*sign));
-    }
-    return labels.map(l=> +(map.get(l)||0));
-  };
-  const income = byMonth(incomes, +1);
-  const expense = byMonth(expenses, +1);
-  const net = income.map((v,i)=> +(v - (expense[i]||0)).toFixed(2));
-  return { labels, income, expense, net };
-}
-
-async function topExpenses(days=30, limit=5){
-  const since = new Date(); since.setDate(since.getDate()-days);
-  const sinceISO = since.toISOString().slice(0,10);
-  const es = await db.expenses.where('date').aboveOrEqual(sinceISO).toArray().catch(()=>[] as any[]);
-  const services = await db.services.toArray().catch(()=>[] as any[]);
-  const serviceName = (id?:string)=> services.find(s=>s.id===id)?.name || 'Sonstiges';
-  const sums: Record<string, number> = {};
-  for (const e of es){
-    const label = serviceName(e.serviceId);
-    sums[label] = (sums[label]||0) + (e.amount||0);
-  }
-  return Object.entries(sums).map(([label,value])=>({label, value})).sort((a,b)=>b.value-a.value).slice(0,limit);
-}
-
-async function kpis(){
-  const [services, subs, assigns, incomes, expenses, tasks, projects, miles] = await Promise.all([
-    db.services.toArray(), db.subscriptions.toArray(), db.assignments.toArray(),
-    db.incomes.toArray(), db.expenses.toArray(), db.tasks.toArray(), db.projects.toArray(), db.milestones.toArray()
-  ]).catch(()=>[[],[],[],[],[],[],[],[]] as any);
-  const activeServices = services.filter((s:any)=>s.active).length;
-  const activeSubs = subs.filter((s:any)=>s.status==='active');
-  const maxSlots = activeSubs.reduce((a:any,s:any)=>a+s.currentSlots, 0);
-  const activeAssigns = assigns.filter((a:any)=>a.status==='active');
-  const freeSlots = Math.max(0, maxSlots - activeAssigns.length);
-  const utilization = maxSlots? Math.round((activeAssigns.length/maxSlots)*100):0;
-  const mrr = activeAssigns.reduce((a:any,s:any)=>a+(s.pricePerMonth||0),0);
-  const ym = new Date().toISOString().slice(0,7);
-  const inMonth = incomes.filter((i:any)=>i.date?.startsWith(ym)).reduce((a:number,b:any)=>a+(b.amount||0),0);
-  const outMonth= expenses.filter((e:any)=>e.date?.startsWith(ym)).reduce((a:number,b:any)=>a+(b.amount||0),0);
-  const netMonth = +(inMonth - outMonth).toFixed(2);
-  const tasksOpen = tasks.filter((t:any)=>t.status!=='done').length;
-
-  const activeProjects = projects.filter((p:any)=>p.status==='planning' || p.status==='active').length;
-  const soon = new Date(); soon.setDate(soon.getDate()+7); const soonISO = soon.toISOString().slice(0,10);
-  const milesOpen = miles.filter((m:any)=>m.status!=='done');
-  const dueSoon = milesOpen.filter((m:any)=> m.due && m.due <= soonISO).length;
-  const byProject = new Map<string, {done:number; total:number}>();
-  for (const m of miles){
-    const bucket = byProject.get(m.projectId) || {done:0,total:0};
-    bucket.total++; if (m.status==='done') bucket.done++;
-    byProject.set(m.projectId, bucket);
-  }
-  let avgProgress = 0; let count = 0;
-  byProject.forEach(v=>{ if(v.total>0){ avgProgress += (v.done/v.total); count++; } });
-  avgProgress = count? Math.round((avgProgress/count)*100) : 0;
-
-  return { activeServices, freeSlots, utilization, mrr:+mrr.toFixed(2), netMonth, tasksOpen, activeProjects, dueSoon, avgProgress };
-}
-
+/** ---------- tiny visual components (no extra deps) ---------- */
 function Euro(n:number){ return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'}).format(n||0); }
 
+function Donut({value, size=120, stroke=12, label}:{value:number; size?:number; stroke?:number; label?:string}){
+  const pct = Math.max(0, Math.min(100, Math.round(value||0)));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const dash = (pct/100) * c;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label}>
+      <g transform={`rotate(-90 ${size/2} ${size/2})`}>
+        <circle cx={size/2} cy={size/2} r={r} stroke="currentColor" strokeOpacity={0.15} strokeWidth={stroke} fill="none"/>
+        <circle cx={size/2} cy={size/2} r={r} stroke="currentColor" strokeWidth={stroke} fill="none"
+          strokeDasharray={`${dash} ${c-dash}`} strokeLinecap="round"/>
+      </g>
+      <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize={Math.round(size/5)}>{pct}%</text>
+    </svg>
+  );
+}
+
+function LineChart({labels, series, height=160}:{labels:string[]; series:{name:string; values:number[]}[]; height?:number}){
+  const width = 560;
+  const pad = 24;
+  const max = Math.max(1, ...series.flatMap(s=> s.values));
+  const min = Math.min(0, ...series.flatMap(s=> s.values));
+  const scaleX = (i:number)=> pad + (i*(width-2*pad)/(Math.max(1, labels.length-1)));
+  const scaleY = (v:number)=> {
+    const h = height - 2*pad;
+    const range = max - min || 1;
+    return pad + (h - ( (v-min) / range ) * h);
+  };
+  function pathFor(vals:number[]){
+    return vals.map((v,i)=> `${i===0?'M':'L'} ${scaleX(i)} ${scaleY(v)}`).join(' ');
+  }
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img">
+      {/* y=0 axis */}
+      <line x1={pad} x2={width-pad} y1={scaleY(0)} y2={scaleY(0)} stroke="currentColor" opacity="0.15"/>
+      {series.map((s,idx)=> (
+        <path key={s.name} d={pathFor(s.values)} fill="none" stroke="currentColor" strokeWidth={2} opacity={0.5 + idx*0.2}/>
+      ))}
+      {/* labels (last) */}
+      <text x={width-pad} y={height-6} textAnchor="end" fontSize="10">{labels[labels.length-1]}</text>
+    </svg>
+  );
+}
+
+function BarChart({labels, values, height=160}:{labels:string[]; values:number[]; height?:number}){
+  const width = 560; const pad = 24;
+  const max = Math.max(1, ...values);
+  const bw = (width - 2*pad) / Math.max(values.length,1);
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img">
+      {values.map((v,i)=>{
+        const h = (v/max) * (height-2*pad);
+        const x = pad + i*bw + 2;
+        const y = height - pad - h;
+        return <rect key={i} x={x} y={y} width={Math.max(2, bw-4)} height={h} fill="currentColor" opacity="0.35"/>;
+      })}
+      <text x={width-pad} y={height-6} textAnchor="end" fontSize="10">{labels[labels.length-1]}</text>
+    </svg>
+  );
+}
+
+/** ---------- helpers ---------- */
+const monthKey = (d:Date)=> `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+const lastNMonths = (n:number)=> {
+  const arr:string[]=[]; const now=new Date();
+  for(let i=n-1;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); arr.push(monthKey(d)); }
+  return arr;
+};
+
 export default function Dashboard(){
-  const [series, setSeries] = useState<Series>({labels:[], income:[], expense:[], net:[]});
-  const [tops, setTops] = useState<{label:string; value:number}[]>([]);
-  const [k, setK] = useState<any>({});
-  useEffect(()=>{
-    (async ()=>{
-      setSeries(await buildSeries(6));
-      setTops(await topExpenses(30,5));
-      setK(await kpis());
-    })();
-  },[]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [assigns, setAssigns] = useState<Assignment[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [range, setRange] = useState<'30d'|'mtd'|'90d'>('mtd');
 
-  const deltaNet = useMemo(()=>{
-    const n = series.net || [];
-    const last = n.length > 0 ? n[n.length - 1] : 0;
-    const prev = n.length > 1 ? n[n.length - 2] : 0;
-    return +(last - prev).toFixed(2);
-  },[series.net]);
+  useEffect(()=>{ (async()=>{
+    await ensureSeed();
+    setServices(await db.services.toArray());
+    setSubs(await db.subscriptions.toArray());
+    setAssigns(await db.assignments.toArray());
+    setIncomes(await db.incomes.toArray().catch(()=>[]));
+    setExpenses(await db.expenses.toArray().catch(()=>[]));
+  })(); }, []);
 
-  // Helper for inline usage (no .at)
-  const netLast = series.net.length > 0 ? series.net[series.net.length - 1] : 0;
-  const netPrev = series.net.length > 1 ? series.net[series.net.length - 2] : 0;
-  const netDeltaInline = netLast - netPrev;
+  // FALLBACK monthly estimates if no transactions exist
+  const estMonthlyIncome = useMemo(()=> assigns.filter(a=>a.status==='active').reduce((s,a)=> s+(a.pricePerMonth||0), 0), [assigns]);
+  const estMonthlyExpense = useMemo(()=> {
+    const byServiceActiveSubs: Record<string, number> = {};
+    for(const s of subs.filter(s=>s.status==='active')){
+      byServiceActiveSubs[s.serviceId] = (byServiceActiveSubs[s.serviceId]||0) + 1;
+    }
+    let sum=0;
+    for(const id in byServiceActiveSubs){
+      const svc = services.find(s=>s.id===id);
+      sum += (svc?.baseCostPerMonth||0) * byServiceActiveSubs[id];
+    }
+    return sum;
+  }, [services, subs]);
+
+  // timeline (12 months)
+  const series12 = useMemo(()=>{
+    const labels = lastNMonths(12);
+    const sumByMonth = (rows: {date:string; amount:number}[]) => {
+      const m:Record<string, number> = {}; for(const r of rows){ const k = monthKey(new Date(r.date)); m[k]=(m[k]||0)+(+r.amount||0); }
+      return labels.map(k=> +(m[k]||0).toFixed(2));
+    };
+    const incVals = incomes.length ? sumByMonth(incomes as any) : labels.map(()=> estMonthlyIncome);
+    const expVals = expenses.length ? sumByMonth(expenses as any) : labels.map(()=> estMonthlyExpense);
+    const netVals = incVals.map((v,i)=> +(v - expVals[i]).toFixed(2));
+    return { labels, incVals, expVals, netVals };
+  }, [incomes, expenses, estMonthlyIncome, estMonthlyExpense]);
+
+  // current period sums
+  const now = new Date();
+  const start30d = new Date(now); start30d.setDate(now.getDate()-30);
+  const start90d = new Date(now); start90d.setDate(now.getDate()-90);
+  const startMTD = new Date(now.getFullYear(), now.getMonth(), 1);
+  const from = range==='30d'? start30d : range==='90d'? start90d : startMTD;
+  const sumFrom = (rows:{date:string; amount:number}[]) => rows.filter(r=> new Date(r.date)>=from).reduce((s,r)=> s+(+r.amount||0), 0);
+  const inSum = incomes.length ? sumFrom(incomes as any) : (estMonthlyIncome * (range==='mtd'?1:range==='30d'?1:3));
+  const exSum = expenses.length ? sumFrom(expenses as any) : (estMonthlyExpense * (range==='mtd'?1:range==='30d'?1:3));
+  const netSum = +(inSum - exSum).toFixed(2);
+
+  // utilization (active used / total slots)
+  const totalSlots = useMemo(()=> subs.filter(s=>s.status==='active').reduce((a,s)=> a + (s.currentSlots||0), 0), [subs]);
+  const usedSlots = useMemo(()=> assigns.filter(a=> a.status==='active').length, [assigns]);
+  const utilPct = totalSlots>0 ? Math.round((usedSlots/totalSlots)*100) : 0;
+
+  // top 5 services by monthly net (estimate)
+  const topNet = useMemo(()=>{
+    const map: Record<string, {name:string; net:number}> = {};
+    for(const svc of services){ map[svc.id] = {name: svc.name, net: 0}; }
+    for(const a of assigns.filter(a=>a.status==='active')){
+      const sub = subs.find(s=> s.id===a.subscriptionId && s.status==='active'); if(!sub) continue;
+      const cost = (services.find(s=>s.id===sub.serviceId)?.baseCostPerMonth || 0) / Math.max(1, subs.filter(s=> s.serviceId===sub.serviceId && s.status==='active').length);
+      const net = (a.pricePerMonth||0) - cost;
+      map[sub.serviceId].net += net;
+    }
+    const arr = Object.values(map).sort((a,b)=> b.net - a.net).slice(0,5);
+    return { labels: arr.map(x=> x.name), values: arr.map(x=> +x.net.toFixed(2)) };
+  }, [services, subs, assigns]);
+
+  // payment mix from incomes
+  const payMix = useMemo(()=>{
+    const mix:Record<string, number> = {};
+    for(const i of incomes){ const k = (i as any).paidVia || 'unbekannt'; mix[k] = (mix[k]||0) + (+i.amount||0); }
+    const total = Object.values(mix).reduce((a,b)=> a+b, 0) || 1;
+    return Object.entries(mix).map(([k,v])=> ({ label: k, pct: Math.round((v/total)*100) }));
+  }, [incomes]);
 
   return (
-    <Page title="Dashboard">
-      {/* KPIs incl. Project cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-8 gap-3 md:gap-4">
-        <div className="card"><div className="text-sm opacity-70">Aktive Services</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.activeServices ?? 0}</div></div>
-        <div className="card"><div className="text-sm opacity-70">Freie Slots</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.freeSlots ?? 0}</div></div>
-        <div className="card flex items-center justify-between"><div><div className="text-sm opacity-70">Auslastung</div><div className="text-3xl font-semibold mt-1">{(k.utilization??0)}%</div></div><Donut value={k.utilization??0} size={80} stroke={10} label="Auslastung"/></div>
-        <div className="card"><div className="text-sm opacity-70">MRR</div><div className="text-3xl font-semibold mt-1">{Euro(k.mrr||0)}</div></div>
-        <div className="card"><div className="text-sm opacity-70">Netto (Monat)</div><div className="text-3xl font-semibold mt-1">{Euro(k.netMonth||0)}</div><div className={"text-xs mt-1 " + (( netDeltaInline )>=0 ? "text-emerald-400" : "text-red-400")}>{( netDeltaInline )>=0 ? "▲" : "▼"} {Euro(Math.abs( netDeltaInline ))} vs. Vormonat</div></div>
-        <div className="card"><div className="text-sm opacity-70">Offene Tasks</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.tasksOpen ?? 0}</div></div>
-
-        {/* New project KPI cards */}
-        <div className="card"><div className="text-sm opacity-70">Projekte aktiv</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.activeProjects ?? 0}</div></div>
-        <div className="card"><div className="text-sm opacity-70">Milestones fällig (7T)</div><div className="text-3xl font-semibold mt-1 tabular-nums">{k.dueSoon ?? 0}</div></div>
+    <Page title="Dashboard" actions={
+      <div className="toolbar">
+        <div className="seg" role="tablist" aria-label="Zeitraum">
+          <button aria-pressed={range==='mtd'} onClick={()=>setRange('mtd')}>Monat</button>
+          <button aria-pressed={range==='30d'} onClick={()=>setRange('30d')}>30 Tage</button>
+          <button aria-pressed={range==='90d'} onClick={()=>setRange('90d')}>90 Tage</button>
+        </div>
+      </div>
+    }>
+      {/* KPI row */}
+      <div className="grid md:grid-cols-4 gap-3 mb-3">
+        <div className="card">
+          <div className="text-sm opacity-70">Einnahmen ({range})</div>
+          <div className="text-3xl font-semibold mt-1">{Euro(inSum)}</div>
+          <div className="mt-2 text-xs opacity-60">Schätzung, wenn keine Incomes erfasst sind.</div>
+        </div>
+        <div className="card">
+          <div className="text-sm opacity-70">Ausgaben ({range})</div>
+          <div className="text-3xl font-semibold mt-1">{Euro(exSum)}</div>
+          <div className="mt-2 text-xs opacity-60">Basis: Service-Kosten × aktive Subscriptions.</div>
+        </div>
+        <div className="card">
+          <div className="text-sm opacity-70">Netto ({range})</div>
+          <div className="text-3xl font-semibold mt-1">{Euro(netSum)}</div>
+          <div className="mt-2 text-xs opacity-60">{netSum>=0? 'positiv':'negativ'}</div>
+        </div>
+        <div className="card flex items-center justify-between">
+          <div>
+            <div className="text-sm opacity-70">Auslastung</div>
+            <div className="text-3xl font-semibold mt-1">{utilPct}%</div>
+            <div className="text-xs opacity-60 mt-2">{usedSlots}/{totalSlots} Slots belegt</div>
+          </div>
+          <Donut value={utilPct} size={100} stroke={12} label="Auslastung"/>
+        </div>
       </div>
 
-      {/* Charts row */}
-      <div className="grid md:grid-cols-2 gap-4 mt-4">
+      {/* Charts */}
+      <div className="grid md:grid-cols-2 gap-3">
         <div className="card">
-          <div className="mb-2 flex items-end justify-between">
-            <div>
-              <div className="font-semibold">Finanzen · 6 Monate</div>
-              <div className="text-xs opacity-70">Einnahmen, Ausgaben, Netto</div>
-            </div>
-            <div className="seg">
-              {series.labels.map((l,i)=> <button key={i} aria-pressed={i===series.labels.length-1}>{l}</button>)}
-            </div>
+          <div className="mb-2">
+            <div className="font-semibold">12 Monate · Einnahmen / Ausgaben / Netto</div>
+            <div className="text-xs opacity-70">Schätzungen, falls keine Buchungen vorhanden.</div>
           </div>
-          <div className="grid gap-3">
-            <div className="glass rounded-xl p-3">
-              <div className="text-xs opacity-70 mb-1">Netto</div>
-              <Sparkline data={series.net} width={320} height={56} fill ariaLabel="Netto Verlauf"/>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="glass rounded-xl p-3">
-                <div className="text-xs opacity-70 mb-1">Einnahmen</div>
-                <Sparkline data={series.income} width={150} height={46} fill ariaLabel="Einnahmen Verlauf"/>
-              </div>
-              <div className="glass rounded-xl p-3">
-                <div className="text-xs opacity-70 mb-1">Ausgaben</div>
-                <Sparkline data={series.expense} width={150} height={46} fill ariaLabel="Ausgaben Verlauf"/>
-              </div>
+          <LineChart
+            labels={series12.labels}
+            series={[
+              {name:'Einnahmen', values: series12.incVals},
+              {name:'Ausgaben', values: series12.expVals},
+              {name:'Netto', values: series12.netVals},
+            ]}
+          />
+        </div>
+
+        <div className="card">
+          <div className="mb-2">
+            <div className="font-semibold">Top 5 Services nach Netto/Monat (Schätzung)</div>
+            <div className="text-xs opacity-70">Preis der Zuweisungen minus anteilige Kosten.</div>
+          </div>
+          <BarChart labels={topNet.labels} values={topNet.values} />
+        </div>
+
+        <div className="card">
+          <div className="mb-2">
+            <div className="font-semibold">Zahlungsmix</div>
+            <div className="text-xs opacity-70">Verteilung aus erfassten Einnahmen</div>
+          </div>
+          <div className="flex gap-6 items-center">
+            <Donut value={payMix.reduce((s,x)=> s + x.pct, 0) || 0} size={110} stroke={12} label="Mix"/>
+            <div className="grid gap-1 text-sm">
+              {payMix.length===0 && <div className="opacity-60">Noch keine Einnahmen erfasst.</div>}
+              {payMix.map(x=> <div key={x.label}><span className="chip mr-2">{x.pct}%</span> {x.label}</div>)}
             </div>
           </div>
         </div>
+
         <div className="card">
-          <div className="mb-2 flex items-end justify-between">
-            <div>
-              <div className="font-semibold">Projekt-Fortschritt (Ø)</div>
-              <div className="text-xs opacity-70">aus Meilensteinen</div>
-            </div>
-            <Donut value={k.avgProgress ?? 0} size={80} stroke={10} label="Ø Projektfortschritt"/>
+          <div className="mb-2">
+            <div className="font-semibold">Netto (12 Monate)</div>
+            <div className="text-xs opacity-70">Balken: Netto pro Monat</div>
           </div>
-          <div className="text-sm opacity-70">Durchschnitt der abgeschlossenen Meilensteine über alle Projekte.</div>
+          <BarChart labels={series12.labels} values={series12.netVals} />
         </div>
       </div>
     </Page>

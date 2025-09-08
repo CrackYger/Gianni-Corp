@@ -1,0 +1,57 @@
+name: iOS Unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build web
+        run: npm run build
+
+      - name: Capacitor iOS project
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Xcode archive (unsigned)
+        run: |
+          set -e
+          mkdir -p build
+          xcodebuild -version
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos -archivePath build/App.xcarchive CODE_SIGNING_ALLOWED=NO clean archive
+
+      - name: Package IPA (unsigned)
+        run: |
+          set -e
+          cd build
+          APP_PATH="App.xcarchive/Products/Applications/App.app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          ZIPNAME="GiannicorpAdmin-unsigned-${{ github.ref_name || github.run_number }}.ipa"
+          /usr/bin/zip -r "$ZIPNAME" Payload
+          ls -lh "$ZIPNAME"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-unsigned
+          path: build/*.ipa
+          if-no-files-found: error

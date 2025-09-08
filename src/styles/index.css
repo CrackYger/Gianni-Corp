@@ -36,3 +36,8 @@ body::before{
 
 .sidebar-link { @apply px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-white/5; }
 .sidebar-link.active { @apply bg-white/10; }
+
+
+/* Inputs: ensure text and placeholder are visible on iOS */
+.input { color: #E6EAF2; caret-color: #E6EAF2; }
+.input::placeholder { color: rgba(230,234,242,0.6); }
