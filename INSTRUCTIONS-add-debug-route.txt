@@ -1,0 +1,10 @@
+➤ Router ergänzen (src/main.tsx)
+
+import { lazy, Suspense } from 'react'
+const AdminDebugPage = lazy(()=> import('./pages/AdminDebugPage'))
+
+... in deinen child routes:
+
+  { path: 'admin-debug', element: <Suspense fallback={<div className='p-6'>Lädt…</div>}><AdminDebugPage/></Suspense> },
+
+Danach aufrufen:  /admin-debug

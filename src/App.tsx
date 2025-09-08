@@ -1,5 +1,6 @@
 
 import { NavLink, Outlet } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
 import MobileNav from '@/components/MobileNav';
 import { LayoutDashboard, CreditCard, Users, CheckSquare, Briefcase, Settings as SettingsIcon } from 'lucide-react';
 
@@ -14,6 +15,7 @@ function NavItem({to, icon, label}:{to:string; icon:JSX.Element; label:string}){
 import { useEffect } from 'react';
 import { usePrefs } from '@/store/usePrefs';
 
+
 export default function App(){
   const apply = usePrefs(s=>s.applyToDOM);
   useEffect(()=>{ apply(); }, [apply]);
@@ -24,6 +26,8 @@ export default function App(){
         <div className="text-lg font-semibold mt-[calc(env(safe-area-inset-top,0px)+6px)]">Giannicorp <span className="text-[#4DA3FF]">Admin</span></div>
         <nav className="grid flex-1 content-center gap-1">
           <NavItem to="/" icon={<LayoutDashboard size={18}/>} label="Dashboard" />
+          <NavItem to="/anfragen" icon={<MessageSquare size={18}/>} label="Anfragen" />
+          <NavItem to="/tickets"  icon={<MessageSquare size={18}/>} label="Tickets" />
           <NavItem to="/abos" icon={<CreditCard size={18}/>} label="Abos" />
           <NavItem to="/personen" icon={<Users size={18}/>} label="Personen" />
           <NavItem to="/finanzen" icon={<CreditCard size={18}/>} label="Finanzen" />

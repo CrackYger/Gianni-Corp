@@ -1,0 +1,46 @@
+        ➤ ROUTES (src/main.tsx)
+        --------------------------------------
+        1) Imports oben ergänzen:
+
+           const Requests = lazy(()=> import('./pages/Requests'));
+           const Tickets = lazy(()=> import('./pages/Tickets'));
+           import { AuthProvider } from './auth/AuthProvider';
+           import SignIn from './pages/SignIn';
+           import { useAuth } from './auth/AuthProvider';
+           function RequireAuth({ children }:{ children: JSX.Element }){
+             const { user, loading } = useAuth();
+             if (loading) return <div className='card m-4 p-6'>Lädt…</div>;
+             if (!user) return <SignIn/>;
+             return children;
+           }
+
+        2) Router-Definition ändern (Element bei '/' wrappen):
+
+           {
+             path: '/',
+-            element: <App />,
++            element: <AuthProvider><RequireAuth><App/></RequireAuth></AuthProvider>,
+             children: [
+               ... (unverändert)
++              { path: 'anfragen', element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Requests/></Suspense> },
++              { path: 'tickets',  element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Tickets/></Suspense> },
+             ]
+           }
+
+        ➤ NAV (src/App.tsx)
+        --------------------------------------
+        1) Oben Icon importieren (lucide-react):
+           import { MessageSquare } from 'lucide-react';
+
+        2) In der Sidebar/Nav zwei Einträge ergänzen:
+           <NavItem to="/anfragen" icon={<MessageSquare size={18}/>} label="Anfragen" />
+           <NavItem to="/tickets"  icon={<MessageSquare size={18}/>} label="Tickets" />
+
+        ➤ .env (Wurzel des Admin-Projekts)
+        --------------------------------------
+           VITE_SUPABASE_URL=...
+           VITE_SUPABASE_ANON_KEY=...
+
+        ➤ Admin-Rechte setzen (einmalig in Supabase SQL Editor):
+           insert into admin_users (user_id) values ('<DEINE_USER_ID>');
+           -- User-ID findest du nach erstem Login in auth.users (oder via supabase.auth.getUser())

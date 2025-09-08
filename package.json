@@ -16,19 +16,23 @@
     "build:ios": "npm run build && npx cap sync ios"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.2",
+    "@tanstack/react-table": "^8.20.5",
+    "date-fns": "^3.6.0",
     "dexie": "^4.0.8",
+    "framer-motion": "^11.0.0",
     "lucide-react": "^0.452.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "zustand": "^5.0.1",
+    "recharts": "^2.12.7",
     "zod": "^3.23.8",
-    "date-fns": "^3.6.0",
-    "framer-motion": "^11.0.0",
-    "@tanstack/react-table": "^8.20.5",
-    "recharts": "^2.12.7"
+    "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
@@ -37,9 +41,6 @@
     "tailwindcss": "^3.4.9",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
-    "@capacitor/cli": "^6.1.2",
-    "@capacitor/core": "^6.1.2",
-    "vite-plugin-pwa": "^0.20.0",
-    "@capacitor/ios": "^6.1.2"
+    "vite-plugin-pwa": "^0.20.0"
   }
 }

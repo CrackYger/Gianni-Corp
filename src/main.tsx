@@ -17,6 +17,8 @@ const Finance = lazy(()=> import('./pages/Finance'));
 const Tasks = lazy(()=> import('./pages/Tasks'));
 const Projects = lazy(()=> import('./pages/Projects'));
 const Settings = lazy(()=> import('./pages/Settings'));
+const Requests = lazy(()=> import('./pages/Requests'));
+const Tickets  = lazy(()=> import('./pages/Tickets'));
 
 function AppError(){
   return (
@@ -52,6 +54,8 @@ const router = (Capacitor?.isNativePlatform? createHashRouter: createBrowserRout
       { path: 'aufgaben', element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Tasks/></Suspense> },
       { path: 'projekte', element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Projects/></Suspense> },
       { path: 'settings', element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Settings/></Suspense> },
+      { path: 'anfragen', element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Requests/></Suspense> },
+      { path: 'tickets',  element: <Suspense fallback={<div className='card m-4 p-6'>Lädt…</div>}><Tickets/></Suspense> },
       { path: '*', element: <AppNotFound/> },
     ]
   }
